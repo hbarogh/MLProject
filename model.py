@@ -8,7 +8,6 @@ from pathlib import Path
 import torch.utils.data as data
 
 
-
 class ImageClassificationCNN():
     def __init__(self, num_class=10):
         super(ImageClassificationCNN, self).__init__()
@@ -16,7 +15,6 @@ class ImageClassificationCNN():
         self.conv_layers = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=3, padding=1)
         )
-
 
 
 def main():
@@ -36,6 +34,3 @@ def main():
             for img_file in wnid_folder.iterdir():
                 if img_file.suffix.lower() in ['.png']:
                     print(f"Processing image: {img_file.name} in folder {wnid_folder.name}")
-
-
-
