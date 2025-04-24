@@ -1,1 +1,0 @@
-#this file we will be creating the data using the openai api
