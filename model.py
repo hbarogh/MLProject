@@ -81,7 +81,12 @@ class ImageClassificationCNN(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.0001)
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.0001, weight_decay=0.0001)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.8, patience=3)
+        return {"optimizer": optimizer,
+                "lr_scheduler": {"scheduler" : scheduler, "monitor": "val_loss"}
+                }
+
 
 
 class CombinedAIDataset(Dataset):
@@ -162,9 +167,8 @@ def make_loaders(batch_size=32):
     train_transforms = transforms.Compose([
         transforms.Resize((256, 256)),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
         transforms.RandomRotation(15),
-        transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225])
@@ -235,7 +239,7 @@ def main():
         filename="ImageClassificationCNN_Checkpoint_Best",
         save_top_k=1
     )
-    early_stop_callback = EarlyStopping(monitor="val_loss", mode="min")
+    early_stop_callback = EarlyStopping(monitor="val_loss", mode="min", patience=5)
 
     # trainer
     trainer = L.Trainer(
