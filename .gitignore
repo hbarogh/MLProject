@@ -80,6 +80,11 @@ target/
 
 #Datasets
 datasets/
+#Logs
+lightning_logs/
+#Chckpoints
+checkpoints/
+
 # IPython
 profile_default/
 ipython_config.py

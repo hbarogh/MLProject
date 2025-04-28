@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from pathlib import Path
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from PIL import Image
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
@@ -11,22 +11,36 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 import random
 
 class ImageClassificationCNN(L.LightningModule):
-    def __init__(self):
+    def __init__(self, pos_weight=None):
         super(ImageClassificationCNN, self).__init__()
         self.conv_layers = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((4, 4))
         )
         self.fc_layers = nn.Sequential(
-            nn.Linear(64 * 64 * 64, 128),
+            nn.Linear(256 * 4 * 4, 128),
             nn.ReLU(),
+            nn.Dropout(0.3),
             nn.Linear(128, 1)
         )
         self.accuracy = Accuracy(task="binary", num_classes=2)
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
     def forward(self, x):
         x = self.conv_layers(x)
         x = x.view(x.size(0), -1)
@@ -36,7 +50,7 @@ class ImageClassificationCNN(L.LightningModule):
     def training_step(self, batch, batch_idx):
         images, labels = batch
         outputs = self(images)
-        loss = nn.BCEWithLogitsLoss()(outputs, labels)
+        loss = self.criterion(outputs, labels)
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).int()
         acc = self.accuracy(preds, labels.int())
@@ -47,7 +61,7 @@ class ImageClassificationCNN(L.LightningModule):
     def validation_step(self, batch, batch_idx):
         images, labels = batch
         outputs = self(images)
-        loss = nn.BCEWithLogitsLoss()(outputs, labels)
+        loss = self.criterion(outputs, labels)
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).int()
         acc = self.accuracy(preds, labels.int())
@@ -58,7 +72,7 @@ class ImageClassificationCNN(L.LightningModule):
     def test_step(self, batch, batch_idx):
         images, labels = batch
         outputs = self(images)
-        loss = nn.BCEWithLogitsLoss()(outputs, labels)
+        loss = self.criterion(outputs, labels)
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).int()
         acc = self.accuracy(preds, labels.int())
@@ -67,7 +81,7 @@ class ImageClassificationCNN(L.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=0.001)
+        return torch.optim.Adam(self.parameters(), lr=0.0001)
 
 
 class CombinedAIDataset(Dataset):
@@ -86,22 +100,6 @@ class CombinedAIDataset(Dataset):
         label = 1.0 if "datasets/ai" in img_path.as_posix() else 0.0
 
         return image, torch.tensor([label], dtype=torch.float32)
-#
-# def gather_paths(split: str):
-#     if split == "train":
-#         real_dirs = list(Path("datasets/ImageNet100").glob("train.*"))
-#     elif split == "val":
-#         real_dirs = Path("datasets/ImageNet100/val.X")
-#     else:
-#         real_dirs = Path("datasets/ImageNet100/test.X")
-#     real_imgs = []
-#     for dir in real_dirs:
-#         real_imgs.extend(list(dir.glob("*.jpeg")))
-#
-#
-#     ai_root = Path("datasets/ai")
-#     ai_imgs = list(ai_root.rglob("*.png"))
-#     return real_imgs, ai_imgs
 
 def _all_jpegs(path: Path):
     "Collect jpg/jpeg/JPEG under a directory tree"
@@ -161,59 +159,88 @@ def gather_paths(split: str):
 
 
 def make_loaders(batch_size=32):
-    transform = transforms.Compose([
+    train_transforms = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.RandomRotation(15),
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.5),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225])
+    ])
+
+    val_transforms = transforms.Compose([
         transforms.Resize((256, 256)),
         transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                             [0.229, 0.224, 0.225])
     ])
+
     def make_loader(split):
         real_paths, ai_paths = gather_paths(split)
-        # if split == "train":
-        #     fake_subset = ai_paths[:]
-        # elif split == "val":
-        #     fake_subset = ai_paths[:len(ai_paths)//5] # gives us 20% of the data
-        # else:
-        #     fake_subset = ai_paths[len(ai_paths)//5: len(ai_paths) // 3]
         if split == "train":
-            n = len(ai_paths)
-            real_paths = random.sample(real_paths, n)
-            print(f"Train: {len(real_paths)} real images, {n} fake images")
-        paths = real_paths + ai_paths
-        random.shuffle(paths)
-        dataset = CombinedAIDataset(paths, transform=transform)
-        shuffle = True if split == "train" else False
-        return DataLoader(
-            dataset,
-            batch_size=batch_size,
-            shuffle=shuffle,
-            num_workers=4,
-            persistent_workers=True,
-            pin_memory=True
-        )
-    train_loader = make_loader("train")
+            n_ai = len(ai_paths)
+            real_paths = random.sample(real_paths, n_ai)
+            print(f"Train: {len(real_paths)} real images, {n_ai} fake images")
+            paths = real_paths + ai_paths
+            n_real = len(real_paths)
+            weights = [ 1.0 if "datasets/ai" in p.as_posix() else n_ai / n_real for p in paths ]
+            sampler = WeightedRandomSampler(weights, num_samples = len(paths), replacement=True)
+            transform = train_transforms
+            pos_weight = torch.tensor([n_real / n_ai], dtype=torch.float32)
+            dataset = CombinedAIDataset(paths, transform=transform)
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                sampler=sampler,
+                num_workers=8,
+                persistent_workers=True,
+                pin_memory=True
+
+            )
+            return loader, pos_weight
+        else:
+            paths = real_paths + ai_paths
+            random.shuffle(paths)
+            transform = val_transforms
+            dataset = CombinedAIDataset(paths, transform=transform)
+            shuffle = False
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                num_workers=4,
+                persistent_workers=True,
+                pin_memory=True
+
+            )
+            return loader
+    train_loader, pos_weight = make_loader("train")
     val_loader = make_loader("val")
     test_loader = make_loader("test")
-    return train_loader, val_loader, test_loader
+    return train_loader, val_loader, test_loader, pos_weight
 
 def main():
     torch.set_float32_matmul_precision('high')
     torch.backends.cuda.benchmark = True
-    train_loader, val_loader, test_loader = make_loaders(batch_size=32)
+    train_loader, val_loader, test_loader, pos_weight = make_loaders(batch_size=32)
     print(f"Train len: {len(train_loader.dataset)}")
     print(f"Val len:   {len(val_loader.dataset)}")
     print(f"Test len:  {len(test_loader.dataset)}")
-    model = ImageClassificationCNN()
+    model = ImageClassificationCNN(pos_weight=pos_weight.to("cuda"))
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss", mode="min",
         dirpath="checkpoints/ImageClassificationCNN/",
         filename="ImageClassificationCNN_Checkpoint_Best",
         save_top_k=1
     )
-    early_stop_callback = EarlyStopping(monitor="val_loss", mode="min", patience=5)
+    early_stop_callback = EarlyStopping(monitor="val_loss", mode="min")
 
     # trainer
     trainer = L.Trainer(
         callbacks=[checkpoint_callback, early_stop_callback],
-        max_epochs=50,
+        max_epochs=15,
         precision="16-mixed",
         accelerator="gpu" if torch.cuda.is_available() else "cpu"
     )
