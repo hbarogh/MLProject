@@ -6,7 +6,7 @@ from torchvision import transforms
 from PIL import Image
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 import lightning as L
-from torchmetrics.classification import Accuracy
+from torchmetrics.classification import Accuracy, confusion_matrix
 from lightning.pytorch.callbacks import ModelCheckpoint
 import random
 
