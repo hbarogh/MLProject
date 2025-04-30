@@ -109,7 +109,9 @@ class CombinedAIDataset(Dataset):
         return image, torch.tensor([label], dtype=torch.float32)
 
 def get_all_jpegs(path: Path):
-    "Collect jpg/jpeg/JPEG under a directory tree"
+    """
+    Collect jpg/jpeg/JPEG under a directory tree
+    """
     return list(path.rglob("*.jpg")) + list(path.rglob("*.jpeg")) + list(path.rglob("*.JPEG"))
 
 
@@ -128,8 +130,8 @@ def gather_paths(split: str):
     test_dir   = root / "val.X"        # rename on-disk unnecessary
 
     # grab every real image once
-    real_train = sum((_all_jpegs(d) for d in train_dirs), start=[])
-    real_test  = _all_jpegs(test_dir)
+    real_train = sum((get_all_jpegs(d) for d in train_dirs), start=[])
+    real_test  = get_all_jpegs(test_dir)
 
     # deterministic shuffle so train/val don’t overlap
     g = torch.Generator().manual_seed(42)
