@@ -18,10 +18,12 @@ class ImageClassificationCNN(L.LightningModule):
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
+
             nn.Conv2d(32, 64, kernel_size=3, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
+
             nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.BatchNorm2d(128),
             nn.ReLU(),
@@ -106,7 +108,7 @@ class CombinedAIDataset(Dataset):
 
         return image, torch.tensor([label], dtype=torch.float32)
 
-def _all_jpegs(path: Path):
+def get_all_jpegs(path: Path):
     "Collect jpg/jpeg/JPEG under a directory tree"
     return list(path.rglob("*.jpg")) + list(path.rglob("*.jpeg")) + list(path.rglob("*.JPEG"))
 
