@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from pathlib import Path
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
-from torchmetrics.functional import confusion_matrix
 from torchvision import transforms
 from PIL import Image
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
