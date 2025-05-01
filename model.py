@@ -31,13 +31,12 @@ class ImageClassificationCNN(L.LightningModule):
             nn.Conv2d(128, 256, kernel_size=3, padding=1),
             nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.AdaptiveAvgPool2d((4, 4))
+            nn.AdaptiveAvgPool2d((1, 1)),
         )
         self.fc_layers = nn.Sequential(
-            nn.Linear(256 * 4 * 4, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 1)
+            nn.Flatten(),
+            nn.Linear(256, 1),
+            nn.ReLU()
         )
         self.accuracy = Accuracy(task="binary", num_classes=2)
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
@@ -119,8 +118,10 @@ class CombinedAIDataset(Dataset):
         return image, torch.tensor([label], dtype=torch.float32)
 
 
-def _all_jpegs(path: Path):
-    "Collect jpg/jpeg/JPEG under a directory tree"
+def get_all_paths(path: Path):
+    """
+    Collect jpg/jpeg/JPEG under a directory tree
+    """
     return list(path.rglob("*.jpg")) + list(path.rglob("*.jpeg")) + list(path.rglob("*.JPEG"))
 
 
@@ -139,8 +140,8 @@ def gather_paths(split: str):
     test_dir = root / "val.X"  # rename on-disk unnecessary
 
     # grab every real image once
-    real_train = sum((_all_jpegs(d) for d in train_dirs), start=[])
-    real_test = _all_jpegs(test_dir)
+    real_train = sum((get_all_paths(d) for d in train_dirs), start=[])
+    real_test = get_all_paths(test_dir)
 
     # deterministic shuffle so train/val don’t overlap
     g = torch.Generator().manual_seed(42)
