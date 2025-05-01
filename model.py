@@ -242,7 +242,7 @@ def make_loaders(batch_size=32):
 def main():
     torch.set_float32_matmul_precision('high')
     torch.backends.cuda.benchmark = True
-    train_loader, val_loader, test_loader, pos_weight = make_loaders(batch_size=64)
+    train_loader, val_loader, test_loader, pos_weight = make_loaders(batch_size=32)
     print(f"Train len: {len(train_loader.dataset)}")
     print(f"Val len:   {len(val_loader.dataset)}")
     print(f"Test len:  {len(test_loader.dataset)}")
