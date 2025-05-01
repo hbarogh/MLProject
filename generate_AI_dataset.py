@@ -8,11 +8,11 @@ from utilities import get_key, create_folder_for_label, convert_and_save_images,
 with open("Labels.json", "r") as file:
     dataset_labels = json.load(file)
 
-labels = dataset_labels.values()
+labels = list(dataset_labels.values())
 
 openai_client = OpenAI(api_key=get_key())
 
-for j, label in enumerate(list(labels)):
+for j, label in enumerate(labels):
     print(f"Working on label {j + 1}/{len(labels)}: {label}")
     folder_path = create_folder_for_label(label, base_path="dataset/ai")
 
