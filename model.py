@@ -177,7 +177,7 @@ def gather_paths(split: str):
 
 def make_loaders(batch_size=32):
     train_transforms = transforms.Compose([
-        transforms.Resize((256, 256)),
+        transforms.Resize((128, 128)),
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
         transforms.RandomRotation(15),
@@ -187,7 +187,7 @@ def make_loaders(batch_size=32):
     ])
 
     val_transforms = transforms.Compose([
-        transforms.Resize((256, 256)),
+        transforms.Resize((128, 128)),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406],
                              [0.229, 0.224, 0.225])
@@ -197,23 +197,20 @@ def make_loaders(batch_size=32):
         real_paths, ai_paths = gather_paths(split)
         if split == "train":
             n_ai = len(ai_paths)
-            real_paths = random.sample(real_paths, n_ai)
             print(f"Train: {len(real_paths)} real images, {n_ai} fake images")
             paths = real_paths + ai_paths
             n_real = len(real_paths)
-            weights = [1.0 if "datasets/ai" in p.as_posix() else n_ai / n_real for p in paths]
-            sampler = WeightedRandomSampler(weights, num_samples=len(paths), replacement=True)
             transform = train_transforms
             pos_weight = torch.tensor([n_real / n_ai], dtype=torch.float32)
             dataset = CombinedAIDataset(paths, transform=transform)
             loader = DataLoader(
                 dataset,
                 batch_size=batch_size,
-                sampler=sampler,
+                # sampler=sampler,
+                shuffle=True,
                 num_workers=8,
                 persistent_workers=True,
                 pin_memory=True
-
             )
             return loader, pos_weight
         else:
