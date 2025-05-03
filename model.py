@@ -236,40 +236,40 @@ def gather_paths(split: str):
 
 def make_loaders(batch_size=32):
     #transforms for the CNN model
-    train_transforms = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-        transforms.RandomRotation(15),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
-    ])
-
-    val_transforms = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406],
-                             [0.229, 0.224, 0.225])
-    ])
-
-    #transforms for the transfer learning model
     # train_transforms = transforms.Compose([
-    #     transforms.Resize((224, 224)),
+    #     transforms.Resize((256, 256)),
     #     transforms.RandomHorizontalFlip(),
     #     transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-    #     transforms.RandomRotation(10),
+    #     transforms.RandomRotation(15),
     #     transforms.ToTensor(),
-    #     transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                          std=[0.229, 0.224, 0.225])
+    #     transforms.Normalize([0.485, 0.456, 0.406],
+    #                          [0.229, 0.224, 0.225])
     # ])
     #
     # val_transforms = transforms.Compose([
-    #     transforms.Resize((224, 224)),
+    #     transforms.Resize((256, 256)),
     #     transforms.ToTensor(),
-    #     transforms.Normalize(mean=[0.485, 0.456, 0.406],
-    #                          std=[0.229, 0.224, 0.225])
+    #     transforms.Normalize([0.485, 0.456, 0.406],
+    #                          [0.229, 0.224, 0.225])
     # ])
+
+    #transforms for the transfer learning model
+    train_transforms = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
+        transforms.RandomRotation(10),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
+
+    val_transforms = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
 
     def make_loader(split):
         real_paths, ai_paths = gather_paths(split)
@@ -330,22 +330,22 @@ def main():
     print(f"Test len:  {len(test_loader.dataset)}")
 
     #regular CNN section that we had before:
-    model = ImageClassificationCNN(pos_weight=pos_weight.to("cuda"))
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss", mode="min",
-        dirpath="checkpoints/ImageClassificationCNN/",
-        filename="ImageClassificationCNN_Checkpoint_Best",
-        save_top_k=1
-    )
-
-    #this is the transfer learning section that I am testing out as well:
-    # model = TransferResNet(pos_weight=pos_weight.to("cuda"), freeze_backbone=False)
+    # model = ImageClassificationCNN(pos_weight=pos_weight.to("cuda"))
     # checkpoint_callback = ModelCheckpoint(
     #     monitor="val_loss", mode="min",
-    #     dirpath="checkpoints/TransferResNet/",
-    #     filename="TransferResNet_Checkpoint_Best",
+    #     dirpath="checkpoints/ImageClassificationCNN/",
+    #     filename="ImageClassificationCNN_Checkpoint_Best",
     #     save_top_k=1
     # )
+
+    #this is the transfer learning section that I am testing out as well:
+    model = TransferResNet(pos_weight=pos_weight.to("cuda"), freeze_backbone=False)
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_loss", mode="min",
+        dirpath="checkpoints/TransferResNet/",
+        filename="TransferResNet_Checkpoint_Best",
+        save_top_k=1
+    )
     early_stop_callback = EarlyStopping(monitor="val_loss", mode="min", patience=5)
 
     # trainer
